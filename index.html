@@ -19,10 +19,15 @@
   .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:14px; margin:12px 0; }
   label { display:block; font-size:14px; font-weight:600; margin:10px 0 6px; }
   input[type=text], input[type=number], textarea, select {
-    width:100%; font-size:17px; padding:12px; border:1px solid var(--line); border-radius:10px; background:#fff; }
-  textarea { min-height:70px; }
+    width:100%; font-size:18px; padding:14px; min-height:54px; border:1px solid var(--line); border-radius:12px; background:#fff; }
+  textarea { min-height:90px; }
+  label { font-size:15px; }
   .seg { display:flex; gap:8px; }
-  .seg button { flex:1; font-size:16px; padding:12px 0; border-radius:10px; border:1px solid var(--line); background:#fff; }
+  .seg button { flex:1; font-size:17px; min-height:54px; border-radius:12px; border:1px solid var(--line); background:#fff; }
+  .photo-btn { flex:1; min-height:84px; font-size:17px; font-weight:600; line-height:1.4; border:2px dashed #9fb3c8;
+               border-radius:14px; background:#f8fbff; color:var(--ink); }
+  .preview { display:none; margin-top:10px; }
+  .preview img { width:100%; max-height:260px; object-fit:contain; border-radius:12px; border:1px solid var(--line); background:#fff; }
   .seg button.on { border-color:var(--blue); background:#e8f1fa; font-weight:700; }
   .big { width:100%; font-size:19px; font-weight:700; padding:16px; border:0; border-radius:12px; background:var(--blue); color:#fff; margin-top:14px; }
   .ghost { width:100%; font-size:15px; padding:12px; border:1px solid var(--line); border-radius:10px; background:#fff; margin-top:8px; }
@@ -76,8 +81,17 @@
     <label for="memo">메모</label>
     <textarea id="memo" placeholder="특이사항"></textarea>
 
-    <label for="photo">사진 1장 (선택)</label>
-    <input id="photo" type="file" accept="image/*" capture="environment">
+    <label>사진 1장 (선택)</label>
+    <div class="row">
+      <button type="button" class="photo-btn" id="camBtn">📷<br>사진 찍기</button>
+      <button type="button" class="photo-btn" id="galBtn">🖼️<br>앨범·파일에서 고르기</button>
+    </div>
+    <input id="photoCam" type="file" accept="image/*" capture="environment" hidden>
+    <input id="photoGal" type="file" accept="image/*" hidden>
+    <div id="preview" class="preview">
+      <img id="previewImg" alt="고른 사진">
+      <button type="button" class="ghost" id="photoClear">✕ 사진 빼기</button>
+    </div>
 
     <button class="big" type="submit">저장</button>
   </form>

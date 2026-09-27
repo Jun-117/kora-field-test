@@ -2,7 +2,7 @@
 // 원칙: 저장은 두 곳(IndexedDB + localStorage), 전송은 연결되는 순간 자동, 실패는 숨기지 않고 🔴로 보인다.
 'use strict';
 
-const VERSION = 'kft-v2 (2026-09-27 · 서버 응답 확인)';
+const VERSION = 'kft-v3 (2026-09-27 · 사진 앨범 선택·큰 칸)';
 const HOOK = 'https://hook.us2.make.com/7u7nlm787subvjwkmemfekpu7n293hag'; // 시험 끝나면 삭제하는 받는 곳
 const LS_KEY = 'kft_records';
 const LS_META = 'kft_meta';
@@ -262,6 +262,28 @@ async function load() {
 }
 
 // ---------- 이벤트 ----------
+// ---------- 사진: 찍기 / 앨범·파일에서 고르기 ----------
+let pickedFile = null;
+let previewUrl = null;
+function showPhoto(file) {
+  pickedFile = file || null;
+  if (previewUrl) { try { URL.revokeObjectURL(previewUrl); } catch (e) {} previewUrl = null; }
+  if (pickedFile) {
+    previewUrl = URL.createObjectURL(pickedFile);
+    $('#previewImg').src = previewUrl;
+    $('#preview').style.display = 'block';
+  } else {
+    $('#previewImg').removeAttribute('src');
+    $('#preview').style.display = 'none';
+  }
+}
+function clearPhoto() { $('#photoCam').value = ''; $('#photoGal').value = ''; showPhoto(null); }
+$('#camBtn').addEventListener('click', () => $('#photoCam').click());
+$('#galBtn').addEventListener('click', () => $('#photoGal').click());
+$('#photoCam').addEventListener('change', (e) => showPhoto(e.target.files[0]));
+$('#photoGal').addEventListener('change', (e) => showPhoto(e.target.files[0]));
+$('#photoClear').addEventListener('click', clearPhoto);
+
 segment('#who', (v) => { who = v; try { localStorage.setItem('kft_who', v); } catch (e) {} renderDiag(); });
 segment('#pp', (v) => { pp = v; });
 
@@ -274,7 +296,7 @@ $('#notifBtn').addEventListener('click', async () => {
 $('#f').addEventListener('submit', async (e) => {
   e.preventDefault();
   M.seq += 1; saveMeta(M);
-  const photoData = await shrinkPhoto($('#photo').files[0]);
+  const photoData = await shrinkPhoto(pickedFile);
   const rec = {
     id: uid(), seq: M.seq, device: M.deviceId, who, createdAt: nowIso(),
     cust: $('#cust').value.trim(), pp, tds: $('#tds').value, flow: $('#flow').value, memo: $('#memo').value.trim(),
@@ -286,6 +308,7 @@ $('#f').addEventListener('submit', async (e) => {
   records = merge(records, [rec]);
   if (!wrote) { idbOk = false; lsOk = false; }
   $('#f').reset(); pp = ''; document.querySelectorAll('#pp button').forEach((b) => b.classList.remove('on'));
+  clearPhoto();
   render();
   syncNow();
 });

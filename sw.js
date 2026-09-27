@@ -1,5 +1,5 @@
 // KORA 현장 시험 — 서비스 워커 (앱 껍데기를 폰에 저장해서 오프라인에서도 열리게)
-const VERSION = 'kft-v2';
+const VERSION = 'kft-v3';
 const SHELL = ['./', './index.html', './app.js', './manifest.webmanifest', './icon-180.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
