@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KORA 현장 시험</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="KORA 시험">
+<meta name="theme-color" content="#1f6fb2">
+<style>
+  :root { --blue:#1f6fb2; --green:#1a9a4b; --yellow:#e0a100; --red:#d33a2c; --bg:#f5f7fa; --ink:#1c2430; --line:#d9e0e8; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system, system-ui, sans-serif; background:var(--bg); color:var(--ink);
+         padding: env(safe-area-inset-top) 16px calc(24px + env(safe-area-inset-bottom)); }
+  h1 { font-size:20px; margin:16px 0 4px; }
+  .sub { color:#5a6776; font-size:13px; margin-bottom:12px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:14px; margin:12px 0; }
+  label { display:block; font-size:14px; font-weight:600; margin:10px 0 6px; }
+  input[type=text], input[type=number], textarea, select {
+    width:100%; font-size:17px; padding:12px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+  textarea { min-height:70px; }
+  .seg { display:flex; gap:8px; }
+  .seg button { flex:1; font-size:16px; padding:12px 0; border-radius:10px; border:1px solid var(--line); background:#fff; }
+  .seg button.on { border-color:var(--blue); background:#e8f1fa; font-weight:700; }
+  .big { width:100%; font-size:19px; font-weight:700; padding:16px; border:0; border-radius:12px; background:var(--blue); color:#fff; margin-top:14px; }
+  .ghost { width:100%; font-size:15px; padding:12px; border:1px solid var(--line); border-radius:10px; background:#fff; margin-top:8px; }
+  .status { display:flex; align-items:center; gap:10px; font-size:16px; font-weight:600; }
+  .dot { width:16px; height:16px; border-radius:50%; flex:none; }
+  .g { background:var(--green); } .y { background:var(--yellow); } .r { background:var(--red); }
+  .banner { display:none; background:#fdecea; color:#8a1f15; border:1px solid #f3b7b0; border-radius:12px; padding:12px; font-weight:600; margin:12px 0; }
+  .list-item { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); font-size:14px; }
+  .list-item:last-child { border-bottom:0; }
+  .list-item .meta { color:#5a6776; font-size:12px; }
+  .diag { font-size:12px; color:#3a4654; white-space:pre-wrap; line-height:1.5; }
+  .row { display:flex; gap:8px; } .row > * { flex:1; }
+  .pill { display:inline-block; font-size:12px; padding:2px 8px; border-radius:99px; background:#eef2f6; }
+</style>
+</head>
+<body>
+  <h1>KORA 현장 시험 (0단계)</h1>
+  <div class="sub">가짜 데이터만 넣어. 저장 버튼 하나, 상태 점 하나.</div>
+
+  <div id="banner" class="banner">🔴 폰에 저장이 안 되고 있어 → 종이에 적어줘</div>
+
+  <div class="card">
+    <div class="status"><span id="bigdot" class="dot y"></span><span id="bigtext">확인 중…</span></div>
+    <div class="sub" style="margin:6px 0 0">🟢 서버에 올라감 · 🟡 폰에 저장됨(연결되면 자동 전송) · 🔴 저장 실패 → 종이</div>
+  </div>
+
+  <div class="card" id="setup">
+    <label>누구 폰이야?</label>
+    <div class="seg" id="who">
+      <button data-v="Jun">Jun</button><button data-v="Tara">Tara</button><button data-v="기타">기타</button>
+    </div>
+    <button class="ghost" id="notifBtn">🔔 알림 허용 + 저장소 보호 켜기</button>
+  </div>
+
+  <form class="card" id="f" autocomplete="off">
+    <label for="cust">고객명 (가짜)</label>
+    <input id="cust" type="text" placeholder="예: 테스트 고객 1">
+
+    <label>PP 필터 색</label>
+    <div class="seg" id="pp">
+      <button type="button" data-v="흰색">⚪ 흰색</button>
+      <button type="button" data-v="갈색">🟤 갈색</button>
+      <button type="button" data-v="검정">⚫ 검정</button>
+    </div>
+
+    <div class="row">
+      <div><label for="tds">TDS</label><input id="tds" type="number" inputmode="decimal" placeholder="예: 180"></div>
+      <div><label for="flow">유량 L/min</label><input id="flow" type="number" inputmode="decimal" step="0.1" placeholder="예: 1.2"></div>
+    </div>
+
+    <label for="memo">메모</label>
+    <textarea id="memo" placeholder="특이사항"></textarea>
+
+    <label for="photo">사진 1장 (선택)</label>
+    <input id="photo" type="file" accept="image/*" capture="environment">
+
+    <button class="big" type="submit">저장</button>
+  </form>
+
+  <div class="card">
+    <div class="status" style="font-size:15px">기록 <span class="pill" id="counts">0</span></div>
+    <div id="list"></div>
+    <button class="ghost" id="syncBtn">↻ 지금 전송 시도</button>
+  </div>
+
+  <div class="card">
+    <div class="status" style="font-size:15px">진단 (Claude 확인용)</div>
+    <div class="diag" id="diag">…</div>
+  </div>
+
+<script src="app.js"></script>
+</body>
+</html>
