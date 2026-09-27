@@ -2,7 +2,7 @@
 // 원칙: 저장은 두 곳(IndexedDB + localStorage), 전송은 연결되는 순간 자동, 실패는 숨기지 않고 🔴로 보인다.
 'use strict';
 
-const VERSION = 'kft-v1 (2026-09-27)';
+const VERSION = 'kft-v2 (2026-09-27 · 서버 응답 확인)';
 const HOOK = 'https://hook.us2.make.com/7u7nlm787subvjwkmemfekpu7n293hag'; // 시험 끝나면 삭제하는 받는 곳
 const LS_KEY = 'kft_records';
 const LS_META = 'kft_meta';
@@ -137,6 +137,22 @@ async function diagSnapshot() {
            idbOk, lsOk, online: navigator.onLine, notif: (window.Notification ? Notification.permission : 'none') };
 }
 
+// 1순위: 응답을 읽는 보통 전송(서버가 받았는지 확인됨)
+// 2순위: 응답을 못 읽으면(CORS) no-cors로 한 번 더 — 전송은 되지만 확인은 못 함 → 「보냄(미확인)」
+// 같은 기록이 두 번 갈 수 있다 → 받는 쪽에서 id로 중복 제거
+async function postOne(body) {
+  try {
+    const res = await fetch(HOOK, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body });
+    let txt = '';
+    try { txt = (await res.text()).slice(0, 60); } catch (e) {}
+    return { ok: res.ok, verified: true, info: res.status + ' ' + txt };
+  } catch (e) {
+    if (!navigator.onLine) throw e;
+    await fetch(HOOK, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body });
+    return { ok: true, verified: false, info: '응답 못 읽음(CORS)' };
+  }
+}
+
 async function syncNow() {
   if (syncing) return;
   syncing = true;
@@ -150,11 +166,17 @@ async function syncNow() {
       if (r.hasPhoto && idb) { try { photo = await idbGetPhoto(r.id); } catch (e) {} }
       const payload = { kind: 'kora-field-test', diag, ...r, sentAt: nowIso(), photo };
       try {
-        // no-cors: 받는 쪽 CORS 설정과 무관하게 전송된다(응답은 못 읽음). 네트워크가 끊기면 여기서 실패한다.
-        await fetch(HOOK, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
-        r.status = 'sent'; r.sentAt = payload.sentAt; r.attempts = (r.attempts || 0) + 1;
+        const res = await postOne(JSON.stringify(payload));
+        r.attempts = (r.attempts || 0) + 1;
+        r.sendInfo = res.info;
+        if (!res.ok) {                                   // 서버가 거절 → 폰에 그대로 두고 다음에 다시
+          await persistRecord(r);
+          lastSyncErr = '서버 거절: ' + res.info;
+          break;
+        }
+        r.status = 'sent'; r.verified = res.verified; r.sentAt = payload.sentAt;
         await persistRecord(r);
-        if (r.hasPhoto && idb) { try { await idbDelPhoto(r.id); } catch (e) {} }   // 올라간 사진은 폰에서 지운다
+        if (r.hasPhoto && idb && res.verified) { try { await idbDelPhoto(r.id); } catch (e) {} }   // 도착이 확인된 사진만 지운다
         lastSyncErr = '';
       } catch (e) {
         r.attempts = (r.attempts || 0) + 1;
@@ -192,7 +214,12 @@ function render() {
   const dot = $('#bigdot'), txt = $('#bigtext');
   if (storageDead) { dot.className = 'dot r'; txt.textContent = '🔴 폰에 저장 안 됨 → 종이에 적기'; }
   else if (pending) { dot.className = 'dot y'; txt.textContent = `🟡 폰에 ${pending}건 저장됨 · 연결되면 자동 전송`; }
-  else { dot.className = 'dot g'; txt.textContent = records.length ? '🟢 전부 서버에 올라감' : '🟢 대기 없음'; }
+  else {
+    const unver = records.filter((r) => r.status === 'sent' && !r.verified).length;
+    dot.className = 'dot g';
+    txt.textContent = !records.length ? '🟢 대기 없음'
+      : unver ? `🟢 전부 보냄 (${unver}건은 도착 미확인 — Claude가 서버에서 셈)` : '🟢 전부 서버 도착 확인';
+  }
 
   $('#counts').textContent = `${records.length}건 (대기 ${pending})`;
   const list = $('#list'); list.innerHTML = '';
@@ -200,7 +227,7 @@ function render() {
     const el = document.createElement('div'); el.className = 'list-item';
     const d = r.status === 'sent' ? 'g' : 'y';
     el.innerHTML = `<span class="dot ${d}"></span><div><div>#${r.seq} ${escapeHtml(r.cust || '(이름 없음)')} · PP ${r.pp || '-'} · TDS ${r.tds || '-'} · ${r.flow || '-'} L/min${r.hasPhoto ? ' · 📷' : ''}</div>
-      <div class="meta">${new Date(r.createdAt).toLocaleString()} · ${r.status === 'sent' ? '보냄' : '대기'}${r.attempts ? ' · 시도 ' + r.attempts : ''}</div></div>`;
+      <div class="meta">${new Date(r.createdAt).toLocaleString()} · ${r.status === 'sent' ? (r.verified ? '도착 확인' : '보냄(미확인)') : '대기'}${r.attempts ? ' · 시도 ' + r.attempts : ''}${r.sendInfo ? ' · ' + escapeHtml(r.sendInfo) : ''}</div></div>`;
     list.appendChild(el);
   });
   renderDiag();
@@ -264,11 +291,18 @@ $('#f').addEventListener('submit', async (e) => {
 });
 
 $('#syncBtn').addEventListener('click', () => syncNow());
+// 시험용: 이미 보낸 기록까지 전부 다시 보내기(받는 쪽이 처음에 거절했던 경우 대비)
+$('#resendBtn').addEventListener('click', async () => {
+  for (const r of records) { r.status = 'pending'; await persistRecord(r); }
+  render(); syncNow();
+});
 window.addEventListener('online', () => syncNow());
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow(); });
 setInterval(() => { if (document.visibilityState === 'visible') syncNow(); }, 20000);
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
+  navigator.serviceWorker.register('./sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloaded) { reloaded = true; location.reload(); } });
 }
 load();

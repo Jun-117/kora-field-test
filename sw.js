@@ -1,9 +1,10 @@
 // KORA 현장 시험 — 서비스 워커 (앱 껍데기를 폰에 저장해서 오프라인에서도 열리게)
-const VERSION = 'kft-v1';
+const VERSION = 'kft-v2';
 const SHELL = ['./', './index.html', './app.js', './manifest.webmanifest', './icon-180.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache:'reload' = 브라우저 HTTP 캐시를 건너뛰고 새 파일을 받는다(GitHub Pages는 10분 캐시)
+  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
